@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   ReactFlow,
@@ -12,12 +11,13 @@ import {
   useEdgesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { FilePlus } from 'lucide-react';
+import { FilePlus, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 
 import Sidebar from './Sidebar';
 import CodePreview from './CodePreview';
+import CanvasMenu from './CanvasMenu';
 import RoleNode from './NodeTypes/RoleNode';
 import ActionNode from './NodeTypes/ActionNode';
 import ContractNode from './NodeTypes/ContractNode';
@@ -28,7 +28,7 @@ import TokenNode from './NodeTypes/TokenNode';
 import PartyNode from './NodeTypes/PartyNode';
 import PayeeNode from './NodeTypes/PayeeNode';
 import NodePropertiesDialog from './NodePropertiesDialog';
-import { saveCanvas } from '@/services/mongodb';
+import { saveCanvas, getCanvas, CanvasData } from '@/services/mongodb';
 
 const nodeTypes = {
   role: RoleNode,
@@ -69,6 +69,7 @@ const Playground = () => {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [nodeTemplates, setNodeTemplates] = useState<Record<string, Record<string, NodeTemplate>>>({});
   const [canvasName, setCanvasName] = useState<string>("Untitled Canvas");
+  const [isCanvasMenuOpen, setIsCanvasMenuOpen] = useState(false);
   
   const developerMode = false;
 
@@ -463,6 +464,45 @@ const Playground = () => {
     }
   }, [canvasName, nodes, edges]);
 
+  const handleOpenCanvasMenu = useCallback(() => {
+    setIsCanvasMenuOpen(true);
+  }, []);
+
+  const handleCloseCanvasMenu = useCallback(() => {
+    setIsCanvasMenuOpen(false);
+  }, []);
+
+  const handleCanvasSelect = useCallback(async (canvas: CanvasData) => {
+    if (canvas.id) {
+      try {
+        // Get the full canvas data if needed
+        const fullCanvas = await getCanvas(canvas.id);
+        if (fullCanvas) {
+          setNodes(fullCanvas.nodes || []);
+          setEdges(fullCanvas.edges || []);
+          setCanvasName(fullCanvas.name);
+          toast({
+            title: "Canvas loaded",
+            description: `${fullCanvas.name} has been loaded into the editor.`,
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to load the selected canvas.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Error loading canvas:', error);
+        toast({
+          title: "Error",
+          description: "An error occurred while loading the canvas.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [setNodes, setEdges]);
+
   return (
     <div className="flex h-screen bg-gray-50 pt-14">
       <Sidebar onNodeTemplateChange={handleNodeTemplateChange} />
@@ -476,6 +516,15 @@ const Playground = () => {
           >
             <FilePlus className="h-4 w-4 mr-1" />
             New Canvas
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleOpenCanvasMenu}
+            className="mr-2"
+          >
+            <FolderOpen className="h-4 w-4 mr-1" />
+            Load Canvas
           </Button>
           <Button 
             variant="outline" 
@@ -530,6 +579,12 @@ const Playground = () => {
           developerMode={developerMode}
         />
       )}
+
+      <CanvasMenu 
+        isOpen={isCanvasMenuOpen}
+        onClose={handleCloseCanvasMenu}
+        onCanvasSelect={handleCanvasSelect}
+      />
     </div>
   );
 };
